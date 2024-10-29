@@ -1,0 +1,113 @@
+---
+title: "ClinDR_package"
+format: html
+editor: visual
+---
+
+```{r}
+# compileStanModels()
+require(clinDR)
+```
+```{r}
+logit <- function(p) log(p / (1 - p))
+inv_logit <- function(y) 1 / (1 + exp(-y))
+```
+
+## Shiny App
+```{r}
+runSimulations()
+```
+
+
+## Examples
+```{r}
+# From the Shiny app
+
+# Design aspects
+nsim <- 1000
+doselev <- c(0,0.333, 0.666, 1)
+n <- c(100,100,100,100)
+Ndose <- length(doselev)
+ 
+# Parameters
+led50 <- log(0.5)
+lambda <- 0.5
+e0 <- -0.4054651
+target <- -1.386294
+targetDose <- 0.666
+emax <- solveEmax(target = target, 
+                        dose = targetDose,
+                        led50 = led50,
+                        lambda = lambda,
+                        e0 = e0,
+                        pboadj = FALSE)
+
+pop <- c(led50 = led50, lambda = lambda, emax = emax, e0 = e0)
+meanlev <- plogis(emaxfun(doselev, pop))
+gen <- FixedMean(n, doselev, meanlev, parm = pop, binary = TRUE)
+ 
+# Priors
+prior <- emaxPrior.control(epmu = -0.4055,
+	epsca = 4,
+	difTargetmu = 0,
+	difTargetsca = 4,
+	dTarget = 0.666,
+	p50 = 0.666,
+	parmDF = 5,
+	binary = TRUE)
+# Stan and MCMC settings
+rstan::rstan_options(auto_write = TRUE)
+mcmc<-mcmc.control(chains=1,warmup=500,iter=5000,
+	propInit=0.15,adapt_delta = 0.95)
+ 
+# Simulate outcomes
+D1 <- emaxsimB(nsim, gen, prior,
+	modType=4,mcmc=mcmc,
+	check=FALSE, nproc=6,
+	binary = TRUE, seed=12357)
+summary(D1)
+plot(D1)
+ 
+# Additional plots of simulation results
+pairv<-select(mutate(as_tibble(D1$est),ED50 = exp(led50)),-led50)
+pairs(pairv)
+```
+
+
+```{r}
+#| echo: false
+
+doselev<-c(0,5,25,50,100)
+n<-c(78,81,81,81,77)
+
+### population parameters for simulation
+e0<-2.465375
+ed50<-67.481113
+dtarget<-100
+diftarget<-9.032497
+emax<-solveEmax(diftarget,dtarget,log(ed50),1,e0)
+sdy<-7.967897
+pop<-c(log(ed50),emax,e0)
+meanlev<-emaxfun(doselev,pop)
+
+###FixedMean is specialized constructor function for emaxsim
+genp<-FixedMean(n,doselev,meanlev,sdy,pop)
+
+### binary example
+n <- rep(500,5)
+doselev <- c(0,5,25,50,1000)
+dose <- rep(doselev,n)
+e0 <- qlogis(0.2)
+ed50 <- 20
+diftarget <- qlogis(0.6)-qlogis(0.2)
+lambda <- 2
+dtarget <- 100
+emax <- solveEmax(diftarget,dtarget,log(ed50),lambda,e0)
+pop <- c(log(ed50),lambda,emax,e0)
+meanlev <- plogis(emaxfun(doselev,pop))
+genp <- FixedMean(n,doselev,meanlev,sdy,pop,binary=TRUE)
+tapply(genp$genFun(genp$genP)$y, dose, mean)
+meanlev
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).

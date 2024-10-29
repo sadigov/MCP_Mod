@@ -1,0 +1,132 @@
+---
+title: "MAGLI_Ph2_CDP_sample_size"
+format: html
+editor: visual
+---
+
+```{r}
+require(MCPModPack)
+```
+
+```{r}
+# Analysis of a dose-finding trial with a binary endpoint
+
+# Endpoint type
+endpoint_type = "Binary"
+
+# Set of candidate dose-response models and initial values of non-linear model parameters
+models = list(quadratic = 0.5, 
+              exponential = 0.3, 
+              emax = 0.3, 
+              logistic = c(0.5, 0.1), 
+              sigemax = c(0.5, 5))
+
+# One-sided Type I error rate
+alpha = 0.05
+
+# Direction of the dose-response relationship (a larger value of the treatment difference corresponds to a beneficial treatment effect)
+direction = "decreasing"
+
+# Model selection criterion (Akaike information criterion)
+model_selection = "AIC"
+
+# The treatment effect for identifying the target dose 
+# (this effect is defined relative to the placebo effect)
+
+
+Delta = -0.33*0.5 # Optimistic TPP is 50 pcnt reduction. Assume 33% rate in high progressive subpopulation
+
+# Perform an MCPMod-based analysis of the trial's data
+
+# data(binary)
+# results = MCPModAnalysis(endpoint_type = endpoint_type, 
+#                      models = models, 
+#                      dose = c(0,1,2,3)/3, # binary$dose
+#                      resp = binary$resp, 
+#                      alpha = alpha, 
+#                      direction = direction, 
+#                      model_selection = model_selection, 
+#                      Delta = Delta)
+
+# Simple summary of the MCPMod analysis results
+# results
+
+# Detailed summary of the MCPMod analysis results
+# AnalysisReport(results, 
+#   "CDP_sample_size_report", 
+#   "CDP_sample_size_report.docx") 
+```
+
+```{r}
+SimulationApp()
+```
+
+```{r}
+# Simulation
+
+# Endpoint type
+endpoint_type = "Binary"
+
+# Set of candidate dose-response models and initial values of non-linear model parameters
+models = list(quadratic = 0.5, 
+              exponential = 0.3, 
+              emax = 0.3, 
+              logistic = c(0.5, 0.1), 
+              sigemax = c(0.5, 5))
+
+# One-sided Type I error rate
+alpha = 0.05
+
+# Direction of the dose-response relationship (a larger value of the treatment difference corresponds to a beneficial treatment effect)
+direction = "decreasing"
+
+# Model selection criterion (Akaike information criterion)
+model_selection = "AIC"
+
+# The treatment effect for identifying the target dose
+# (this effect is defined relative to the placebo effect)
+
+
+Delta = -0.33*0.5 # Optimistic TPP is 50 pcnt reduction. Assume 33% rate in high progressive subpopulation
+
+
+# Select the assumed dose-response model and values of the non-linear model parameters
+sim_models = list(emax = 0.3 ,
+                  placebo_effect = 0.33, 
+                  max_effect = seq(from = 0, to = -0.15, by = -0.01)
+                  )
+
+
+# Simulation parameters
+
+sim_parameters = list(n = rep(40, 4),
+                      doses = c(0, 1, 2, 3)/3,
+                      dropout_rate = 0.05,
+                      nsims = 1000,
+                      go_threshold = -0.33*0.7) # 30% reduction is the target TPP. 
+# go_threshold = probabilities that the maximum effect for the best
+                                                                      # dose-response model corresponding to a significant 
+                                                                      # contrast exceeds a predefined value. The threshold is 
+                                                                      # defined relative to the placebo effect.
+
+# Perform an MCPMod-based simulation
+results1 = MCPModSimulation(endpoint_type = endpoint_type,
+                           models = models,
+                           alpha = alpha,
+                           direction = direction,
+                           model_selection = model_selection,
+                           Delta = Delta,
+                           sim_models = sim_models,
+                           sim_parameters = sim_parameters)
+
+# Simple summary of the MCPMod simulation results
+results1
+
+# Detailed summary of the MCPMod simulation results (remove tempfile)
+
+SimulationReport(results = results1,
+                 report_title = "MCPMod simulation summary cCDP12",
+                 tempfile('/My Drive/My Documents/CNS/MS/MAGLi/CDP/2023/Sample_Size/Generic/MCPMod_simulation_summary_cCDP12.docx', 
+                          fileext=".docx")
+                 )
+```

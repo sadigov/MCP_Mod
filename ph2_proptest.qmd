@@ -1,0 +1,106 @@
+---
+title: "magli_Ph2_proptest"
+format: html
+editor: visual
+---
+
+```{r}
+require(pwr)
+
+```
+
+# Sample size for comparing 2 proportions
+
+```{r}
+# params
+
+p.ocr <- 0.43
+p.magli <- p.ocr*0.7 # 30% reduction
+```
+
+# Sample size required for a 2 arm study to detect 30% rrr
+
+```{r}
+#| echo: false
+p3.out <- pwr.2p.test(h = ES.h(p1 = 0.43, p2 = 0.43*0.7),  # p.ocr = 0.43 at 2 yrs for cCDP12)
+            sig.level = 0.05, 
+            alternative = "greater", 
+            power = 0.8)
+
+p3.out <- pwr.2p.test(h = ES.h(p1 = 0.43, p2 = 0.43*0.7),  # p.ocr = 0.43 at 2 yrs for cCDP12)
+            sig.level = 0.1, 
+            alternative = "two.sided", 
+            power = 0.8)
+
+# n	- Number of observations (per sample)
+
+# assuming 15% dropout:
+
+172/0.85 # 15% dropout rate
+
+
+plot(p3.out)
+```
+
+# Minimially detectable diff with sample size of 172
+
+```{r}
+#| echo: false
+pwr.2p.test(h = ES.h(p1 = 0.43, p2 = 0.43*0.8), 
+            sig.level = 0.05, 
+            alternative = "greater", 
+            power = 0.5)
+
+# n	- Number of observations (per sample)
+
+```
+```{r}
+#| echo: false
+# MDD for proportion for n=172
+
+p1 <- p.ocr
+p2 <- 0.8*p.ocr
+n <- 172
+
+# SE for diff in props based on normal approx
+var1 <- p1*(1-p1)/n + p2*(1-p2)/n
+se1 <- sqrt(var1)
+
+(p1-p2)/se1 #should be equal to quantile below
+qnorm(0.95)
+```
+
+
+
+```{r}
+#| echo: false
+
+require(binMto)
+# Approximate power (any rejection!) for many-to-one comparison of binomial proportions
+
+# Recalculate the power of the Dunnett-contrast
+# for the first setting in Bretz and Hothorn (2002, Table III),
+
+
+apprPower(n=c(215, 215, 215, 215),
+          pH1=c(0.43, 0.38, 0.35, 0.3), 
+          alpha=0.05, alternative="less", 
+          method="Wald")
+
+```
+```{r}
+#| echo: false
+
+require(binMto)
+# Approximate power (any rejection!) for many-to-one comparison of binomial proportions
+
+# Recalculate the power of the Dunnett-contrast
+# for the first setting in Bretz and Hothorn (2002, Table III),
+plot(doses, c(0.43, 0.35, 0.32, 0.3))
+
+apprPower(n=c(200, 200, 200, 200),
+          pH1=c(0.43, 0.35, 0.32, 0.3), 
+          alpha=0.05, alternative="less", 
+          method="Wald")
+
+```

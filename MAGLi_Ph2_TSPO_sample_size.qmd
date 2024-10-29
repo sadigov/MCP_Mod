@@ -1,0 +1,77 @@
+---
+title: "TSPO Study Sample Size"
+format: html
+date: "July 2023"
+author: "Shamil Sadikhov"
+editor: visual
+---
+
+# TSPO Study Sample Size
+
+## MCP-Mod
+
+```{r}
+require(MCPMod)
+
+```
+
+# 
+
+```{r}
+#| echo: false
+## variance from the natalizumab TSPO control arm
+
+var <- 0.001447473 * 2
+
+# doses <- c(0, 0.25, 0.5, 0.75, 1) 
+doses1 <- c(0, 0.33, 0.67, 1)
+
+# Natalizumab treatment reduced microglial activation in the NAWM.
+# 
+# This was demonstrated as a significantly smaller DVR of the TSPO radioligand binding after treatment vs
+# 
+# before treatment (1.22 vs 1.25; p = 0.014, Wilcoxon)
+# 
+# function calculates the guesstimates according to the percentage p of the maximum effect that is achieved at a certain dose d.
+# 
+# Suppose, for example, we want to calculate a guesstimate for the ED50 parameter from the Emax model
+
+ed50 <- guesst(d = c(0.5, 0.75), p = c(0.7, 0.9), model = "emax") # 0.1488095 guesst(d = c(0.5, 0.75), p = c(0.7, 0.9), model = "emax")
+
+mod0 <- list( emax = c(ed50), sigEmax = c(ed50, 0.9), betaMod = c(0.5, 1),
+              logistic = matrix(c(0.25, 0.7, 0.09, 0.06), 
+                                byrow = FALSE, nrow = 2))
+
+mod1 <- list( emax = c(ed50), sigEmax = c(ed50, 0.9)) 
+mod2 <- list( emax = c(ed50), sigEmax = c(ed50, 5), exponential = c(0.6))
+
+fMod2 <- fullMod(models = mod2, doses = doses1, base = 0, maxEff = 0.06, scal = 1.2) 
+
+plot(fMod2) # automatically calls the plotModels function
+
+# scal - Scale parameter for the beta model (default: 20 percent larger than maximum dose)
+
+plotModels(mod0, doses, base = 0, maxEff = 0.06, scal = 1.2) 
+
+plotModels(mod1, doses1, base = 0, maxEff = 0.06, scal = 1.2)
+
+fmod1 <- fullMod(mod1, doses, base = 0, maxEff = 0.06, scal = 1.2)
+
+
+```
+
+------------------------------------------------------------------------
+
+## 
+
+```{r}
+# Power
+
+# sigma - Expected standard deviation
+
+pM <- powerMM(fMod2, sigma = sqrt(var), alpha = 0.05, lower = 5, upper = 20, step = 1)
+
+plot(pM, line.at = 0.9, models = "none") 
+
+plot(pM, line.at = c(0.8, 0.9),  models = "none")
+```

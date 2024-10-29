@@ -1,0 +1,44 @@
+---
+title: "MCPModGeneral Package Example"
+format: html
+editor: visual
+---
+
+#Example analysis
+
+```{r}
+# install.packages("MCPModGeneral")
+
+require(DoseFinding)
+require(MCPModGeneral)
+
+```
+
+# Example binary EP
+
+
+```{r}
+#| echo: false
+# Example
+# Analyze the binary migraine data from the DoseFinding package.
+data(migraine)
+models = Mods(linear = NULL, emax = 1, quadratic = c(-0.004),
+              doses = migraine$dose)
+
+powMCTGen(migraine$ntrt, family = "binomial", link = "logit",
+          Ntype = "actual", altModels = models)
+
+
+sampSizeMCTGen("binomial", "logit", altModels = models, power = 0.8,
+               Ntype = "arm", upperN = 30, verbose = TRUE)
+
+# Now analyze using binomial weights
+PFrate <- migraine$painfree/migraine$ntrt
+
+migraine$pfrat = migraine$painfree / migraine$ntrt
+
+MCPModGen(family = "binomial", link = "logit", returnS = TRUE, w = "ntrt", dose = "dose",
+   resp = "pfrat", data = migraine, models = models, selModel = "aveAIC",
+   Delta = 0.2)
+
+```

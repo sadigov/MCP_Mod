@@ -1,0 +1,405 @@
+---
+title: "DoseFinding_package"
+format: html
+editor: visual
+---
+
+```{r}
+#| echo: false
+require(DoseFinding)
+require(ggplot2)
+
+# https://rdrr.io/cran/DoseFinding/f/vignettes/binary_data.Rmd
+```
+
+```{r}
+#| echo: false
+#| eval: false
+help(DoseFinding)
+```
+
+Interactive app
+
+```{r}
+#| echo: false
+#| eval: false
+DesignMCPModApp()
+
+```
+
+# Example Dose-finding Binary response
+
+## 30 percent relative risk reduction, control risk rate is 0.7/year
+
+```{r}
+#| echo: false
+
+# candidate set of models for the mean response on the logit scale:
+
+logit <- function(p) log(p / (1 - p))
+inv_logit <- function(y) 1 / (1 + exp(-y))
+
+doses <- c(0, 1, 2, 3)/3 # normalized equidistant doses
+
+mods1 <- Mods(emax = c(0.25, 0.5), 
+             sigEmax = rbind(c(0.25, 4), c(0.5, 2)), 
+             betaMod = c(1.1, 0.8),
+             placEff = logit(0.7), 
+             maxEff = logit(0.3)-logit(0.7), # max eff: 0.7*0.7 -> 30 pcnt reduction from 0.7 = 0.49. set Emax = 0.3
+             doses = doses)
+
+
+```
+
+```{r}
+#| echo: false
+#| eval : false
+
+# plots
+
+# plotMods(mods1) ## plot candidate models on logit scale
+
+plotMods(mods1, trafo = inv_logit) ## plot candidate models on probability scale
+
+# plotMods(mods1, plotTD = TRUE, Delta = -0.1)
+```
+
+Calculate the power under each of the candidate models. Calculate the vector of mean responses lo on the logit scale. When we transform it back to probability scale p, we can calculate the approximate variance of the (logit-scale) estimator mu_hat with the formula
+
+$$
+\mathrm{Var}(\hat\mu) = \frac{1}{np(1-p)} 
+$$ Next we calculate the minimum power across the candidate set using powMCT() and plot it for increasing n.
+
+```{r}
+#| echo: false
+#| eval: false
+
+## Optimal Contarsts
+## here we have balanced sample sizes across groups, so we select w = 1
+## otherwise would select w proportional to group sample sizes
+contMat <- optContr(mods1, w=1)
+
+## we need each alternative model as a separate object
+alt_model_par <- list(emax = 0.25, emax = 1, sigEmax = c(2, 4),
+                      sigEmax = c(2, 2), betaMod = c(1.1, 0.8))
+
+alt_common_par <- list(placEff = logit(0.7), maxEff = logit(0.3) - logit(0.7),
+                       doses = doses)
+## this is a bit hackish because we need to pass named arguments to Mods()
+alt_mods <- lapply(seq_along(alt_model_par), function(i) {
+  do.call(Mods, append(alt_model_par[i], alt_common_par))
+})
+
+prop_true_var_mu_hat <- lapply(seq_along(alt_model_par), function(i) {
+  ## mean responses on logit scale
+  lo <- getResp(do.call(Mods, append(alt_model_par[i], alt_common_par)))
+  p <- inv_logit(lo) # mean responses on probability scale
+  v <- 1 / (p * (1-p)) # element-wise variance of mu_hat up to a factor of 1/n
+  return(as.numeric(v)) # drop unnecessary attributes
+})
+
+min_power_at_group_size <- function(n) {
+  pwr <- mapply(function(m, v) powMCT(contMat, alpha=0.05, altModels=m, S=diag(v/n), df=Inf),
+                alt_mods, prop_true_var_mu_hat)
+  return(min(pwr))
+}
+
+n <- seq(5, 80, by=5)
+pwrs <- sapply(n, min_power_at_group_size)
+qplot(n, pwrs, geom="line", ylab="Min. Power over candidate set")+
+  scale_y_continuous(breaks = seq(0,1, by=0.1), limits = c(0,1))
+
+
+```
+
+# MAGLi MCP-Mod Ph2 Design
+
+## 50% relative risk reduction, control risk rate is 0.7/year
+
+```{r}
+#| echo: false
+#| eval: false
+
+# candidate set of models for the mean response on the logit scale:
+
+logit <- function(p) log(p / (1 - p))
+inv_logit <- function(y) 1 / (1 + exp(-y))
+
+doses <- c(0, 1, 2, 3)/3 # normalized equidistant doses
+
+mods2 <- Mods(emax = c(0.25, 0.5), 
+             sigEmax = rbind(c(0.25, 3), c(0.5, 4)), 
+             betaMod = c(1.5, 0.1),
+             placEff = logit(0.7), 
+             maxEff = logit(0.35)-logit(0.7), # max eff: 0.5*0.7 -> 50 pcnt reduction from 0.7
+             doses = doses)
+plotMods(mods2)
+## plot candidate models on probability scale
+plotMods(mods2, trafo = inv_logit)
+
+
+```
+
+## Calculate the power under each of the candidate models.
+
+-Calculate the vector of mean responses lo on the logit scale. - When we transform it back to probability scale p, we can calculate the approximate variance of the (logit-scale) estimator mu_hat with the formula
+
+$$
+\mathrm{Var}(\hat\mu) = \frac{1}{np(1-p)}
+$$. Next we calculate the minimum power across the candidate set using powMCT() and plot it for increasing n.
+
+```{r}
+#| echo: false
+#| eval: false
+
+## Optimal Contarsts
+## here we have balanced sample sizes across groups, so we select w = 1
+## otherwise would select w proportional to group sample sizes
+contMat <- optContr(mods2, w=1)
+
+## we need each alternative model as a separate object
+alt_model_par <- list(emax = 0.25, emax = 0.5, sigEmax = c(0.25, 3),
+                      sigEmax = c(0.5, 4), betaMod = c(1.5, 0.1))
+alt_common_par <- list(placEff = logit(0.7), 
+                       maxEff = logit(0.35)-logit(0.7),
+                       doses = doses)
+## this is a bit hackish because we need to pass named arguments to Mods()
+alt_mods <- lapply(seq_along(alt_model_par), function(i) {
+  do.call(Mods, append(alt_model_par[i], alt_common_par))
+})
+
+prop_true_var_mu_hat <- lapply(seq_along(alt_model_par), function(i) {
+  ## mean responses on logit scale
+  lo <- getResp(do.call(Mods, append(alt_model_par[i], alt_common_par)))
+  p <- inv_logit(lo) # mean responses on probability scale
+  v <- 1 / (p * (1-p)) # element-wise variance of mu_hat up to a factor of 1/n
+  return(as.numeric(v)) # drop unnecessary attributes
+})
+
+min_power_at_group_size <- function(n) {
+  pwr <- mapply(function(m, v) powMCT(contMat, alpha=0.05, altModels=m, S=diag(v/n), df=Inf),
+                alt_mods, prop_true_var_mu_hat)
+  return(min(pwr))
+}
+
+n <- seq(5, 80, by=5)
+pwrs <- sapply(n, min_power_at_group_size)
+qplot(n, pwrs, geom="line", ylab="Min. Power over candidate set")+
+  scale_y_continuous(breaks = seq(0,1, by=0.1), limits = c(0,1))
+
+
+```
+
+## 50% relative risk reduction, control risk rate is 0.47/year (Lublin 2022)
+
+## 50% relative risk reduction in cCDP12, control risk rate is 0.27/year (Oratorio)
+
+Based on the Oratorio trial cCDP annual rate of 27%, the 18 month rate is 1.5\*0.27 = 0.405.
+
+```{r}
+#| echo: false
+#| eval: false
+
+# candidate set of models for the mean response on the logit scale:
+
+logit <- function(p) log(p / (1 - p))
+inv_logit <- function(y) 1 / (1 + exp(-y))
+
+doses <- c(0, 1, 2, 3)/3 # normalized equidistant doses
+p.rate <- 0.405
+
+mods4 <- Mods(emax = c(0.25, 0.5), 
+             sigEmax = rbind(c(0.25, 3), c(0.5, 4)), 
+             betaMod = c(1.5, 0.1),
+             placEff = logit(p.rate), 
+             maxEff = logit(0.2) - logit(p.rate), # max eff: 0.5*p.rate -> 50 pcnt reductio. set Emax = 0.2
+             doses = doses)
+
+
+##  calculate doses giving an improvement of 0.3 over placebo
+# TD(mods3, Delta = 0.14)
+
+```
+
+```{r}
+# Plots
+
+## Plot candidate models on the logit scale
+plotMods(mods4)
+
+## plot candidate models on probability scale
+plotMods(mods4, trafo = inv_logit)
+
+# plot(mods3, plotTD = TRUE, Delta = 1.2) # this doesn't work, Delta on prob scale doesn't produce reasonable TD. Negative delta is not accepted in the code
+```
+
+Calculate the power under each of the candidate models. Calculate the vector of mean responses lo on the logit scale. When we transform it back to probability scale p, we can calculate the approximate variance of the (logit-scale) estimator mu_hat with the formula
+
+$$
+\mathrm{Var}(\hat\mu) = \frac{1}{np(1-p)}
+$$
+
+Next we calculate the minimum power across the candidate set using powMCT() and plot it for increasing n.
+
+```{r}
+#| echo: false
+#| eval: false
+
+## Optimal Contarsts
+## here we have balanced sample sizes across groups, so we select w = 1
+## otherwise would select w proportional to group sample sizes
+contMat <- optContr(mods4, w=1)
+
+## we need each alternative model as a separate object
+alt_model_par <- list(emax = 0.25, emax = 1, sigEmax = c(0.5, 3),
+                      sigEmax = c(0.5, 4), betaMod = c(1.5, 0.1))
+alt_common_par <- list(placEff = logit(p.rate), 
+                       maxEff = logit(0.2)-logit(p.rate),
+                       doses = doses)
+## this is a bit hackish because we need to pass named arguments to Mods()
+alt_mods <- lapply(seq_along(alt_model_par), function(i) {
+  do.call(Mods, append(alt_model_par[i], alt_common_par))
+})
+
+prop_true_var_mu_hat <- lapply(seq_along(alt_model_par), function(i) {
+  ## mean responses on logit scale
+  lo <- getResp(do.call(Mods, append(alt_model_par[i], alt_common_par)))
+  p <- inv_logit(lo) # mean responses on probability scale
+  v <- 1 / (p * (1-p)) # element-wise variance of mu_hat up to a factor of 1/n
+  return(as.numeric(v)) # drop unnecessary attributes
+})
+
+min_power_at_group_size <- function(n) {
+  pwr <- mapply(function(m, v) powMCT(contMat, alpha = 0.025, altModels=m, S=diag(v/n), df=Inf),
+                alt_mods, prop_true_var_mu_hat)
+  return(min(pwr))
+}
+
+n <- seq(50, 100, by=2)
+
+pwrs <- sapply(n, min_power_at_group_size)
+
+s.size <- ceiling(max(n[which(pwrs <= 0.80)])) # sample size per arm
+
+#assuming a 10% dropout rate
+s.size/0.9
+
+qplot(n, pwrs, geom="line", ylab="Min. Power over candidate set") +
+  scale_y_continuous(breaks = seq(0,1, by=0.1), limits = c(0,1))
+
+```
+
+# 2 year progression Ph2 Design
+
+## 50% relative risk reduction in cCDP12, control risk rate is 43% at week 96 (Oratorio)
+
+Rate computed after applying the following additional criteria in Oratorio trial to patients on ocrevus
+
+Age 18 - 55y PPMS Disease duration \< 10 yrs EDSS 3-6.5
+
+```{r}
+#| echo: false
+
+# candidate set of models for the mean response on the logit scale:
+
+logit <- function(p) log(p / (1 - p))
+inv_logit <- function(y) 1 / (1 + exp(-y))
+
+doses <- c(0, 1, 2, 3)/3 # normalized equidistant doses
+p.ocr <- 0.43
+p.magli <- p.ocr * 0.5
+
+mods5 <- Mods(emax = c(0.25, 0.5), 
+             sigEmax = rbind(c(0.25, 3), c(0.5, 4)), 
+             betaMod = c(1.5, 0.1),
+             placEff = logit(p.ocr), 
+             maxEff = logit(p.magli) - logit(p.ocr), 
+             doses = doses)
+
+
+##  calculate doses giving an improvement of 0.3 over placebo
+# TD(mods3, Delta = 0.14)
+
+```
+
+```{r}
+#| echo: false
+
+## Plot candidate models on the logit scale
+# plotMods(mods5)
+
+## plot candidate models on probability scale
+plotMods(mods5, trafo = inv_logit)
+
+# plot(mods3, plotTD = TRUE, Delta = 1.2) # this doesn't work, Delta on prob scale doesn't produce reasonable TD. Negative delta is not accepted in the code
+```
+
+Calculate the power under each of the candidate models. Calculate the vector of mean responses lo on the logit scale. When we transform it back to probability scale p, we can calculate the approximate variance of the (logit-scale) estimator mu_hat with the formula
+
+$$
+\mathrm{Var}(\hat\mu) = \frac{1}{np(1-p)}
+$$ calculate the minimum power across the candidate set using powMCT() and plot it for increasing n.
+
+```{r}
+```
+
+
+```{r}
+#| echo: false
+
+## Optimal Contrasts
+## here we have balanced sample sizes across groups, so we select w = 1
+## otherwise would select w proportional to group sample sizes
+contMat <- optContr(mods5, w=1)
+
+## we need each alternative model as a separate object
+alt_model_par <- list(emax = 0.25, emax = 0.5, 
+                      sigEmax = c(0.25, 3),
+                      sigEmax = c(0.5, 4), 
+                      betaMod = c(1.5, 0.1))
+
+alt_common_par <- list(placEff = logit(p.ocr), 
+                       maxEff = logit(p.magli)-logit(p.ocr),
+                       doses = doses)
+
+## this is a bit hackish because we need to pass named arguments to Mods()
+alt_mods <- lapply(seq_along(alt_model_par), function(i) {
+  do.call(Mods, append(alt_model_par[i], alt_common_par))
+})
+
+prop_true_var_mu_hat <- lapply(seq_along(alt_model_par), function(i) {
+  ## mean responses on logit scale
+  lo <- getResp(do.call(Mods, append(alt_model_par[i], alt_common_par)))
+  p <- inv_logit(lo) # mean responses on probability scale
+  v <- 1 / (p * (1-p)) # element-wise variance of mu_hat up to a factor of 1/n
+  return(as.numeric(v)) # drop unnecessary attributes
+})
+
+min_power_at_group_size <- function(n) {
+  pwr <- mapply(function(m, v) powMCT(contMat, alpha = 0.025, altModels=m, S=diag(v/n), df=Inf),
+                alt_mods, prop_true_var_mu_hat)
+  return(min(pwr))
+}
+
+n <- seq(50, 100, by = 1)
+
+pwrs <- sapply(n, min_power_at_group_size)
+
+s.size <- ceiling(max(n[which(pwrs <= 0.80)])) # sample size per arm
+
+#assuming a 15% dropout rate at week 96
+(tot_s.size <- ceiling(s.size/0.86) * length(doses))
+
+
+```
+```{r}
+
+qplot(n, pwrs, geom="line", ylab="Min. Power over candidate set") +
+  scale_y_continuous(breaks = seq(0,1, by = 0.1), limits = c(0,1))
+
+
+```
+
+
+
+

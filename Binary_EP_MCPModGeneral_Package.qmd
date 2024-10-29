@@ -1,0 +1,110 @@
+---
+title: "MAGLi_cCDP_MCPModGeneral_package"
+format: html
+editor: visual
+---
+
+# MAGL inhibitor Ph2 design
+
+```{r}
+# install.packages("MCPModGeneral")
+
+require(DoseFinding)
+require(MCPModGeneral)
+
+```
+
+```{r}
+
+# candidate set of models for the mean response on the logit scale:
+
+logit <- function(p) log(p / (1 - p))
+inv_logit <- function(y) 1 / (1 + exp(-y))
+
+doses <- c(0, 1, 2, 3)/3 # normalized equidistant doses
+# doses <- c(0, 1, 2, 3,4,5)/5 # normalized equidistant doses
+
+p.ocr <- 0.43
+p.magli <- p.ocr * 0.5
+
+mods5 <- Mods(emax = c(0.25, 0.5), 
+             sigEmax = rbind(c(0.25, 3), c(0.5, 4)), 
+             betaMod = c(1.5, 0.1),
+             placEff = logit(p.ocr), 
+             maxEff = logit(p.magli) - logit(p.ocr), 
+             doses = doses)
+
+
+# plotMods(mods5) ## plot candidate models on logit scale
+
+plotMods(mods5, trafo = inv_logit) ## plot candidate models on probability scale
+
+# plot(mods5, plotTD = TRUE, Delta = -0.1)
+
+```
+
+```{r}
+# power calculation for dose-response (PoC)
+
+powMCTGen(nSample = 81, 
+          doses = doses, family = "binomial", link = "logit",
+          Ntype = "arm", altModels = mods5, 
+          alpha = 0.025)
+
+# min power 80%
+
+Assuming 10% DO rate 81/0.9 = 90 per arm
+```
+
+# Estimating the doses of interest
+
+## Precision around the Target Dose (TD)
+
+Precision around the TD varies with the assumed dose-response model.
+
+```{r}
+Smat <- planModPrepare(nSample = 81, family = 'binomial', link = 'log', 
+               theoResp = getResp(mods5)[,3],
+               doses = doses,
+               Ntype = "arm")
+
+pObj1 <- planMod(model = "emax",
+        altModels = mods5,
+        S = Smat,   # Either a vector ‘⁠n⁠’ and ‘⁠sigma⁠’ or ‘⁠S⁠’ need to be specified.
+        simulation = T,
+        nSim = 10000, 
+        cores = 10)
+
+summary(pObj1, Delta = -(logit(p.magli) - logit(p.ocr))*0.9)
+
+```
+
+## Probability of estimating ED90 within certain bounds.
+
+What is the probability that the placebo-corrected response associated with the estimated dose will be within 75% to 99% of the maximum response attainable within the dose range used.
+
+```{r}
+
+# Compute covariance matrix
+Smat <- planModPrepare(nSample = 81, family = 'binomial', link = 'log', 
+               theoResp = getResp(mods5)[ , 3],
+               doses = doses,
+               Ntype = "arm")
+
+pObj2 <- planMod(model = "emax",
+        altModels = mods5,
+        S = Smat,   # Either a vector ‘⁠n⁠’ and ‘⁠sigma⁠’ or ‘⁠S⁠’ need to be specified.
+        simulation = T,
+        p = 0.6,
+        pLB = 0.4, pUB = 0.8,
+        nSim = 10000, 
+        cores = 10)
+
+print(pObj2)
+```
+
+For example, P(ED0.9) gives the probability that the estimated ED0.6 if within the true ED0.40 and ED0.80 .
+
+```{r}
+sessionInfo()
+```

@@ -1,0 +1,113 @@
+---
+title: "Ocre_effmart_analyses"
+author: Shamil Sadikhov"
+created: "2023-10-20"
+date: "Last compiled `r Sys.Date()` by `r Sys.info()[['user']]` on `r Sys.info()['nodename']`"
+format: html
+editor: visual
+---
+
+
+
+```{r}
+# load libraries install them if necessary
+
+libs_to_load <- c("data.table", "DBI", "dbplyr", "dplyr", "tidyr", "magrittr", "purrr", "devtools", "plotly", "RColorBrewer", "jsonlite", "Hmisc", "table1", 'fastStat', 'lubridate', 'ggalluvial', "DescTools","tidyverse","RWDSverse","odbc","knitr",'rice','rvest','qwraps2','survival', 'survminer','curl','visR','streamgraph')
+
+libs_to_install <- libs_to_load[!(libs_to_load %in% installed.packages()[, "Package"])]
+
+if (length(libs_to_install)) install.packages(libs_to_install)
+
+lapply(libs_to_load, require, character.only=T)
+
+# Set global theme for plots
+
+theme_set(theme_minimal())
+
+theme_update(plot.title = element_text(hjust = 0.5))
+
+#knitting
+
+knitr::opts_chunk$set(warning=F, message=F)
+
+```
+
+```{r}
+# require(rice)
+
+rice_session_open(username = Sys.getenv("USER"),
+                  password = NULL
+)
+
+adam_path = 'root/clinical_studies/RO4964913/CDPT3422/share/pool_EFFICACY_CUT_ANON_NOV2022/work/work_external/outdata_vad'
+
+files = rice_ls(adam_path, prolong = TRUE)
+
+files
+
+```
+
+```{r}
+# Subject level dataset
+
+df_adsl <- rice_read(paste0(adam_path, "/adsl.sas7bdat"), prolong = T)
+
+# Time to event dataset
+
+df_ate <- rice_read(paste0(adam_path, "/ate.sas7bdat"), prolong = T)
+
+# Time to event dataset for on ocrevus only
+
+df_ateocr <- rice_read(paste0(adam_path, "/ateocr.sas7bdat"), prolong = T)
+
+```
+
+
+
+```{r}
+# close connection
+
+rice_session_close()
+
+```
+
+```{r}
+# KM for cCDP12 in Oratorio
+
+df_ateocrasl <- df_ateocr %>% left_join(df_adsl)
+
+df_ccdp12 <- df_ateocrasl %>% filter(AENDPCD == "CCDP" & PARAMCD == "CDP12"
+                                     & between(BAGE, 18, 55)
+                                     & between(BEDSS, 3, 6.5)
+                                     & DIAGYRS <= 10
+                                     & STUDYID == "WA25046"
+                                     & ABASETP == "OCRELIZUMAB BASELINE") %>%
+  select(AVAL, CNSR, BAGE, BEDSS, DIAGYRS, STUDYID, PARAMCD, ABASETP, APERIODC)
+
+table1( ~ AVAL + CNSR + BAGE + BEDSS + DIAGYRS + ABASETP + APERIODC, data = df_ccdp12)
+
+```
+
+
+```{r}
+require(survival)
+
+# KM for cCDP12
+
+# survival
+
+km_ccdp12 <- survfit(Surv(AVAL/7, 1-CNSR) ~ 1, data = df_ccdp12) # survival time in weeks
+
+# KM estimate progression-free at week 96 (approx 2 years)
+
+summary(km_ccdp12, times = c(1, 12, 24, 48, 72, 96, 108)) # km with time in weeks
+
+```
+
+
+```{r}
+require(ggfortify)
+
+autoplot(km_ccdp12)
+
+```

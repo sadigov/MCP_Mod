@@ -1,0 +1,62 @@
+---
+title: "Sample Size Generic MS Ph3 TTE Endpoint"
+author: "Gian Thanei"
+format: html
+editor: visual
+---
+
+```{r}
+#| echo: false
+
+library(rpact)
+library(tidyverse)
+```
+
+```{r}
+#| echo: false
+
+type <- "PPMS"
+
+type <- "RMS"
+
+
+#using cCDP as an endpoint
+#we always assume that BS-aCD20 reduces the yearly event rates of progression by 30%.
+#Ocrelizumab
+
+#PPMS:
+rate1 <- 0.24
+
+# RMS:
+# rate1 <- 0.12
+
+
+#BS-aCD20 per year rates
+rate2 <- rate1*0.7
+
+#incase you want to use CDP: rate1 <- 0.13
+
+drop_out_per_year <- 0.025
+#recruitment_time <- 1
+pure_followup_time <- 1
+
+#numbers provided by trials ops management (contact Dmitry)
+if(type == "RMS") {
+  accrualTime      = c(0,1,2,3,4,5,6,7,8,9,10,11,12,13:100)/12
+  accrualIntensity = c(6,12,30,60,80,90,100,110,120,120,120,120,rep(120,89))
+} else if(type == "PPMS") {
+  accrualTime      = c(0,1,2,3,4,5,6,7,8,9,10)/12
+  accrualIntensity = c(3,7,12,16,20,25,26,29,31,33,36)
+}
+
+out <- getSampleSizeSurvival(
+  alpha = 0.05, beta = 0.2,sided = 2,
+  lambda1 = log(1/(1-rate2)),
+  lambda2 = log(1/(1-rate1)),
+  dropoutRate1 = drop_out_per_year,
+  dropoutRate2 = drop_out_per_year,
+  accrualTime = accrualTime,
+  accrualIntensity = accrualIntensity*12,
+  followUpTime = 1)
+
+```

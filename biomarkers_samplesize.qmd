@@ -1,0 +1,318 @@
+---
+title: "MAGLi Biomarkers Sample Size"
+author: "Shamil Sadikhov"
+format: html
+editor: visual
+---
+
+
+```{r}
+#| echo: false
+require(MCPMod)
+require(ggplot2)
+require(DoseFinding)
+require(pwr)
+
+```
+
+## 
+
+# CSF Osteopontin
+
+The primary endpoint, CSF osteopontin, was significantly reduced from the mean baseline value 322 ng/mL (95% CI 257--387) by a mean of 65 ng/mL (95% CI 34--96; figure 2) at week 60
+
+Publication: https://n.neurology.org/content/neurology/82/17/1499.full.pdf
+
+
+
+# CDP designs for eSPC 
+old link: https://docs.google.com/presentation/d/1v0OEwxsEp_Bn-t-4LX9eDWQHYS_vPv8T59C0kUZmuQg/edit?usp=sharing
+
+
+```{r}
+#| echo: false
+
+# CSF Biomarker data
+
+## NFL
+nfl.bl <- 1160.30
+nfl.52w.mean <- 809.69
+nfl.52w.chg <- -261.85
+nfl.52w.chg.sd <- 1175.72
+nfl.nsize <- 28
+
+## YKL-40
+ykl40.bl <- 219.59
+ykl40.w52 <- 203.44
+ykl40.chg.w52 <- -20.86
+ykl40.chg.sd <- 37.43
+ykl40.nsize <- 27
+```
+
+```{r}
+
+```
+
+# MCP-Mod
+
+```{r}
+#| echo: false
+#| eval: false
+#| 
+## variance from the natalizumab osteopontin change from baseline
+
+require(MCPMod)
+
+var <- sd.chg^2
+
+# doses <- c(0, 0.25, 0.5, 0.75, 1) 
+doses1 <- c(0, 0.33, 0.67, 1)
+
+
+
+ed50 <- guesst(d = c(0.5, 0.75), p = c(0.7, 0.9), model = "emax") 
+
+mods1 <- list(emax = c(ed50), sigEmax = c(ed50, 0.9), betaMod = c(0.5, 1),
+
+logistic = matrix(c(0.25, 0.7, 0.09, 0.06), byrow = FALSE, nrow = 2))
+
+mods1 <- list( emax = c(ed50), sigEmax = c(ed50, 0.9)) 
+mods2 <- list( emax = c(ed50), sigEmax = c(ed50, 5), exponential = c(0.6))
+
+fMod <- fullMod(models = mods2, doses = doses1, base = 322, maxEff = -65, scal = 200) 
+
+plot(fMod) # automatically calls the plotModels function
+
+# scal - Scale parameter for the beta model (default: 20 percent larger than maximum dose)
+
+plotModels(mods1, doses, base = 322, maxEff = -70, scal = 1) 
+plotModels(mods1, doses1, base = 322, maxEff = -70, scal = 1)
+
+
+fmods1 <- fullMod(mods2, doses1, base = 322, maxEff = -70, scal = 1)
+
+# Power
+
+# sigma - Expected standard deviation
+
+pM <- powerMM(fmods1, sigma = sqrt(var), alpha = 0.05, lower = 5, upper = 40, step = 2)
+
+
+```
+
+```{r}
+plot(pM, line.at = 0.9, models = "none") 
+plot(pM, line.at = 0.8, models = "none")
+```
+
+
+
+# New request Dec 5 2023
+
+```{r}
+#| echo: false
+
+
+doses1 <- c(0, 1, 2, 3)/3
+
+# YKL-40 Glycoprotein in PPMS (n=31 OBOE)
+
+# change at w52
+ykl40.bl <- 219.59
+ykl40.w52 <- 203.44
+ykl40.chg.w52 <- -20.86
+ykl40.chg.sd <- 37.43
+
+magli.chg.w52 <- 1.5 * ykl40.chg.w52 # 50% more relative reduction
+
+mods1 <- DoseFinding::Mods(emax = c(0.25, 0.5), 
+             sigEmax = rbind(c(0.25, 3), c(0.5, 4)), 
+             betaMod = c(1.5, 0.1),
+             placEff = ykl40.chg.w52, 
+             maxEff = magli.chg.w52 - ykl40.chg.w52, 
+             doses = doses,
+             direction = "decreasing")
+
+
+```
+
+```{r}
+plotMods(mods1)
+```
+
+
+```{r}
+#| echo: false
+
+
+## Optimal Contrasts
+## here we have balanced sample sizes across groups, so we select w = 1
+## otherwise would select w proportional to group sample sizes
+contMat <- optContr(mods1, w=1)
+print(contMat)
+plot(contMat)
+
+
+pM <- powerMM(fmods1, sigma = ykl40.chg.sd,  alpha = 0.05, lower = 5, upper = 40, step = 2)
+
+pM <- powMCT(contMat, altModels = mods1, n = 200, alpha = 0.025, sigma = ykl40.chg.sd)
+print(pM)
+
+sampSizeMCT(upperN = 200, contMat = contMat, altModels = mods1, sigma = ykl40.chg.sd,
+            power = 0.8, alRatio = rep(1, length(doses)), alpha = 0.025, Ntype = "arm")
+
+```
+
+
+
+
+```{r}
+# YKL40
+# power using pairwise comparisons dunnet test
+
+
+
+```
+
+# CDP option A1 ‘base case’ with signal seeking Ph2a (BMs) 
+ 
+
+```{r}
+#| echo: false
+#| eval: false
+
+
+# Ph2a design, add on to SoC
+# 2 arms
+
+# require(pwr)
+# 
+# 
+# ## YKL-40
+# ykl40.bl <- 219.59
+# ykl40.w52 <- 203.44
+# ykl40.chg.w52 <- -20.86
+# ykl40.chg.sd <- 37.43
+# ykl40.nsize <- 27
+# 
+# 
+# # YKL-40
+# # 50% relative reduction in levels relative to ocrevus
+# d.ykl40 <- ykl40.chg.w52*0.5/(sqrt(2)*ykl40.chg.sd)
+# ykl40.pwr <- pwr.t.test(d = d.ykl40, power = 0.8, sig.level = 0.1, type = "two.sample", alternative = "two.sided")
+# 
+# plot(ykl40.pwr)
+
+```
+```{r}
+# CSF YKL-40 still
+require(prwss)
+
+# 50% relative reduction in CSF YKL-40 concentration change from bl relative to control
+ykl40.pwrres <- pwrss.t.2means(mu1 = ykl40.chg.w52, mu2 = ykl40.chg.w52 *0.5, sd1 = ykl40.chg.sd, sd2 = ykl40.chg.sd, kappa = 1, 
+               power = 0.8, alpha = 0.1,
+               alternative = "not equal")
+
+```
+
+```{r}
+# NFL
+
+
+## NFL
+nfl.bl <- 1160.30
+nfl.52w.mean <- 809.69
+nfl.52w.chg <- -261.85
+nfl.52w.chg.sd <- 1175.72
+nfl.nsize <- 28
+
+# CSF Nfl
+# 50% relative reduction in levels relative to ocrevus
+
+# d - difference between the means divided by the pooled standard deviation
+
+# d.nfl <- nfl.52w.chg*0.5 / (sqrt(2) * nfl.52w.chg.sd)
+# 
+# nfl.pwr <- pwr.t.test(d = d.nfl, power = 0.8, sig.level = 0.1, type = "two.sample", alternative = "two.sided")
+# 
+# plot(nfl.pwr)
+
+```
+
+```{r}
+# CSF NFL still
+require(prwss)
+
+# 50% relative reduction in CSF NFL concentration change from bl relative to control
+nfl.pwrres <- pwrss.t.2means(mu1 = nfl.52w.chg  , mu2 = nfl.52w.chg *0.5, sd1 = nfl.52w.chg.sd, sd2 = nfl.52w.chg.sd, kappa = 1, 
+               power = 0.8, alpha = 0.1,
+               alternative = "not equal")
+
+```
+```{r}
+# MRI T1 non-enhancing volume change form baseline
+
+t1vol.w48.chg <- 0.406 
+t1vol.w48.sd <- 1.81
+
+# complete reduction in vol relative to ocrevus
+
+# d - difference between the means divided by the pooled standard deviation
+
+# d.t1v <- (0-t1vol.w48.chg)/t1vol.w48.sd
+# 
+# t1v.pwr <- pwr.t.test(d = d.t1v, power = 0.8, sig.level = 0.1, type = "two.sample", alternative = "two.sided")
+# 
+# plot(nfl.pwr)
+
+```
+
+```{r}
+# T1 lesion volume still
+require(prwss)
+
+# 50% relative reduction in T1 volume change from bl relative to control
+t1vol.pwrres <- pwrss.t.2means(mu1 = t1vol.w48.chg , mu2 = t1vol.w48.chg*0.5, sd1 = t1vol.w48.sd, sd2 = t1vol.w48.sd, kappa = 1, 
+               power = 0.8, alpha = 0.1,
+               alternative = "not equal")
+
+```
+
+
+# MCP-Mod
+Sample size to reduce T1 non-enhancing volume change to 0 at w48
+
+```{r}
+
+
+## Optimal Contrasts
+## here we have balanced sample sizes across groups, so we select w = 1
+## otherwise would select w proportional to group sample sizes
+contMat <- optContr(mods1, w=1)
+print(contMat)
+plot(contMat)
+
+mods_t1 <- DoseFinding::Mods(emax = c(0.25, 0.5), 
+             sigEmax = rbind(c(0.25, 3), c(0.5, 4)), 
+             betaMod = c(1.5, 0.1),
+             placEff = t1vol.w48.chg, 
+             maxEff = 0 - t1vol.w48.chg, 
+             doses = doses,
+             direction = "decreasing")
+
+pM <- powMCT(contMat, altModels = mods_t1, n = 200, alpha = 0.025, sigma = ykl40.chg.sd)
+print(pM)
+
+sampSizeMCT(upperN = 200, contMat = contMat, altModels = mods_t1, sigma = t1vol.w48.sd,
+            power = 0.8, alRatio = rep(1, length(doses)), alpha = 0.025, Ntype = "arm")
+
+```
+
+# CDP option A2 - ‘base case’ with dose finding on BMs in Ph2a 
+
+```{r}
+
+# Ph2a design, add on to SoC
+# 4 arms
+
+```

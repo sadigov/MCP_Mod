@@ -1,0 +1,228 @@
+---
+title: "MAGLi_cCDP_PosMCP_Mod_package"
+format: html
+editor: visual
+---
+
+# MED probability of success (PoSMED)
+
+This simulation implements the method described in Liu et al https://onlinelibrary.wiley.com/doi/10.1002/pst.2330
+
+```{r}
+#| echo: false
+
+
+# require(devtools)
+# devtools::install_github("happysundae/posMCPMod")
+
+require(DoseFinding)
+require(posMCPMod)
+require(tidyverse)
+require(paramtest)
+
+
+```
+
+
+```{r}
+
+source("functions_mcpmod.R")
+
+```
+
+```{r}
+#| echo: false
+
+
+doses <- c(0, 1, 2, 3)/3 # normalized equidistant doses
+p.ocr <- 0.43
+p.magli <- p.ocr * 0.5     # 50% rr reduction
+
+# Candidate models
+mods5 <- Mods(emax = c(0.25, 0.5), 
+             sigEmax = rbind(c(0.25, 3), c(0.5, 4)), 
+             betaMod = c(1.5, 0.1),
+             placEff = logit(p.ocr), 
+             maxEff = logit(p.magli) - logit(p.ocr), 
+             doses = doses,
+             direction = "decreasing")
+
+# True model assumed
+mod.true <- Mods(emax = c(0.5), 
+                 placEff = logit(p.ocr), 
+                 maxEff = logit(p.magli) - logit(p.ocr), 
+                 doses = doses,
+                 direction = "decreasing")
+
+plotMods(mods5, trafo = inv_logit)
+
+# plotMods(mod.true)
+```
+
+```{r}
+#| echo: false
+#| eval: false
+
+
+# when the response variable is binomial
+gd.obj <- gen_design(dls = doses, ntot = 400, ratio =  c(1, 1, 1, 1))
+
+dat <- sim_dat(dls = gd.obj$dls, ntot = gd.obj$ntot, ngrp = gd.obj$ngrp, Mods.obj.true = mod.true, type = "binomial")
+
+tapply(dat$resp, dat$dose, mean)
+```
+
+
+
+```{r}
+#| echo: false
+#| eval: false
+
+# test the function
+
+# with(dat, tapply(resp, dose, mean))
+
+analy_MCPMod2(sim.obj = dat, Mods.obj.cand = mods5, 
+              type = "binomial", 
+              direction = "decreasing",
+              Delta = logit(p.magli) - logit(p.ocr) + 0.1 , 
+              alpha = 0.025)
+```
+
+
+```{r}
+#| echo: false
+#| eval: false
+
+
+#test
+require(MCPModGeneral)
+
+data <- sim_dat(dls = gd.obj$dls, ntot = gd.obj$ntot, ngrp = gd.obj$ngrp, Mods.obj.true = mod.true, type = "binomial")
+
+
+Delta <- logit(p.ocr*0.7) - logit(p.ocr)  # clinically meaningful decrease in progression
+
+fmod <- MCPModGeneral::MCPModGen(family = "binomial", link = "logit", returnS = TRUE, dose = "dose",
+   resp = "resp", data = data, models = mods5, selModel = "aveAIC", 
+   doseType = "TD",
+   pVal = TRUE,
+   Delta = abs(Delta))
+
+  poc <- ifelse(min(attr(fmod$MCPMod$MCTtest$tStat, "pVal")) < 0.025, 1, 0)
+
+  dseq <- seq(dls[1], dls[length(dls)], by=0.005)
+  
+  # if PoC achieved
+  if (length(fmod$MCPMod$selMod) > 0) {
+    mod.pred <- do.call("cbind", predict(fmod$MCPMod, doseSeq=dseq, predType = "effect-curve", se.fit = F))
+    wtd.pred <- mod.pred %*% fmod$MCPMod$selMod
+      if (direction == "increasing") {
+          med <- dseq[which(wtd.pred >= Delta)[1]]}
+      else if (direction == "decreasing") {
+         med <- dseq[which(wtd.pred <= Delta)[1]]}
+  } else {
+    med <- NA
+  }
+
+  med
+```
+
+
+```{r}
+# Simulation of PosMED
+
+posmedf2 <- function(pdoses = doses,
+                    pngrp.equal = 90,
+                    pplacEff = p.ocr,
+                    pmaxEff = p.magli,
+                    ptype = "binomial",
+                    pcand.mods = mods5,
+                    pmod.true = mod.true,
+                    pDelta = 0.8,             # Delta A numeric value indicating the clinically meaningful effect size, for non-normal on the transformed scale (e.g. logit)
+                    ptrue.med = 0.8,          # true MED
+                    plower = 0.8,             # Multiplier for the lower MED limit
+                    pupper = 1.2,             # Multiplier for the upper MED limit
+                    pp.ctrl = p.ocr, 
+                    pp.trt = p.magli
+                    ) {
+  
+  require(posMCPMod)
+  require(MCPModGeneral)
+  require(DoseFinding)
+  require(dplyr)
+  
+  source("functions_mcpmod.R")
+  
+  gd.obj1 <- gen_design(dls = pdoses,  ngrp.equal = pngrp.equal)
+  
+  
+  dat1 <- posMCPMod::sim_dat(
+    dls = gd.obj1$dls,
+    ntot = gd.obj1$ntot,
+    ngrp = gd.obj1$ngrp,
+    Mods.obj.true = pmod.true,
+    type = ptype)
+  
+  
+  analys1 <- analy_MCPMod2(sim.obj = dat1,
+                         type = ptype,
+                         Mods.obj.cand = pcand.mods,
+                         Delta = pDelta)
+  
+  pos.mat <- unlist(eval_MCPMod(
+    analys1,
+    true.med = ptrue.med,
+    lower = plower,
+    upper = pupper
+  ))
+  
+  
+  return(pos.mat)
+  # return a named vector with the results we want to keep
+}
+```
+
+```{r}
+# Simulations using the paramtest R package
+
+power_posmed2 <-
+  run_test(
+    posmedf2,
+    n.iter = 10000,
+    output = 'data.frame',
+    parallel = 'snow',
+    ncpus = 10,
+    pdoses = doses,
+    pngrp.equal = 90,
+    pplacEff = p.ocr,
+    pmaxEff = p.magli,
+    ptype = "binomial",
+    pcand.mods = mods5,
+    pmod.true = mod.true,
+    pDelta = logit(p.ocr*0.7) - logit(p.ocr) ,  # Delta A numeric value indicating the clinically meaningful effect size, for non-normal on the transformed scale (e.g. logit)
+    ptrue.med = 0.25,
+    plower = 0.5,
+    pupper = 2
+  )  
+
+
+# results(power_posmed2)
+
+# PoSMED
+power_posmed2$results %>% 
+  filter(!is.na(est.med)) %>%
+    summarise(pos=mean(pos))
+
+# PoC
+power_posmed2$results %>% 
+  filter(!is.na(est.med)) %>%
+    summarise(power=mean(poc))
+
+# Check pcnt missing
+# results(power_posmed2)$est.med %>% summary()
+
+```
+```{r}
+sessionInfo()
+```

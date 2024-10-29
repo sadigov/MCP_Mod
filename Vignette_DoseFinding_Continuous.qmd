@@ -1,0 +1,116 @@
+---
+title: "Vignette_continuous_DoseFinding"
+format: html
+editor: visual
+---
+
+
+
+
+
+```{r}
+library(DoseFinding)
+data(glycobrom)
+print(glycobrom)
+```
+
+## DoseFinding Package Continuous endpoint
+
+## Running Code
+
+
+
+
+
+We want to create a dataset with 60 participants in each of the five groups. Noticing that the standard errors are essentially equal across all groups, we draw five vectors of measurement errors centered at 0 with identical variances 60 * 0.015^2 which we add to the observed means.
+
+Note that here we use MASS::mvrnorm instead of rnorm because it lets us generate random numbers with the specified sample mean and sd.
+
+
+
+```{r}
+#| echo: false
+
+set.seed(1, kind = "Mersenne-Twister", sample.kind = "Rejection", normal.kind = "Inversion")
+rand <- rep(MASS::mvrnorm(60, 0, 60 * 0.015^2, empirical = TRUE), 5)
+NVA <- data.frame(dose = rep(glycobrom$dose, each = 60),
+                  FEV1 = rep(glycobrom$fev1, each = 60) + rand)
+
+ggplot(NVA) + geom_jitter(aes(dose, FEV1), height = 0, width = 4) +
+  labs(title = "Simulated FEV1 by dose (jittered horizontally)") +
+  xlab("dose [μg]") + ylab("FEV1 [l]")
+
+```
+
+
+```{r}
+#| echo: false
+
+doses <- c(0, 12.5, 25, 50, 100)
+mods <- Mods(emax = c(2.6, 12.5), sigEmax = c(30.5, 3.5), quadratic = -0.00776,
+             placEff = 1.25, maxEff = 0.15, doses = doses)
+plotMods(mods, ylab = "FEV1")
+
+```
+
+We can also take a look at the calculated optimal contrasts. Each contrast has maximum power to detect a non-flat effect profile in the hypothetical world where the particular guesstimate is actually the true value.
+
+
+```{r}
+#| echo: false
+
+
+optC <- optContr(mods, w=1)
+print(optC)
+plot(optC)
+
+```
+
+
+## Analysis stage
+
+We run the multiple contrast test with the pre-specified models. Note that the type parameter defaults to type="normal", which means that we assume a homoscedastic ANOVA model for FEV1, i.e. critical values are taken from a multivariate t distribution. Further note that when data is supplied, the first two arguments dose and FEV1 are not evaluated, but symbolically refer to the columns in data=NVA.
+
+
+```{r}
+#| echo: false
+
+test_normal <- MCTtest(dose = dose, resp = FEV1, models = mods, data = NVA)
+print(test_normal)
+
+```
+
+
+```{r}
+#| echo: false
+
+
+
+```
+
+
+```{r}
+#| echo: false
+
+
+
+```
+
+```{r}
+#| echo: false
+
+
+
+```
+
+
+```{r}
+#| echo: false
+
+
+
+```
+
+
+
+
