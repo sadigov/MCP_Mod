@@ -1,6 +1,6 @@
 ---
 title: "Sample Size Generic MS Ph3 TTE Endpoint"
-author: "Gian Thanei"
+author: "Shamil Sadikhov"
 format: html
 editor: visual
 ---
